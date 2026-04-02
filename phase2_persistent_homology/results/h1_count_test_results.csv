@@ -1,0 +1,4 @@
+latent,normal_h1,tumor_h1_mean,tumor_h1_std,tumor_h1_min,tumor_h1_max,p_value
+16d_cosine,15,14.96,3.229303330441413,7,23,0.595
+32d_cosine,8,19.85,3.7439951923046055,10,30,0.0
+64d_cosine,11,10.825,2.8114720343620707,3,19,0.62
