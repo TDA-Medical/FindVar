@@ -103,27 +103,90 @@ L_topo  = Sinkhorn OT divergence (입력/출력 pairwise distance 보존)
 
 ## IV. TDA 분석
 
-### 사용 기법
+### 배경: Persistent Homology란
+
+Persistent Homology(PH)는 데이터의 **위상적 구조(topological structure)** — 연결 성분, 루프, 빈 공간 등 — 를 다양한 스케일에서 추적하는 수학적 기법이다. 유클리드 거리나 상관계수가 측정하는 "거리"나 "방향"과 달리, PH는 데이터가 형성하는 **형태(shape)** 자체를 분석한다.
+
+### 필트레이션 과정
+
+데이터 포인트 집합 X에 대해 반지름 ε를 0에서 점차 키우면서 단체 복합체(simplicial complex)의 변화를 관찰한다:
+
+```
+ε = 0:  각 포인트가 고립된 점         → K_0 (연결 성분 = 샘플 수)
+ε 증가: 가까운 점들이 연결(edge)      → K_1 (군집이 형성되기 시작)
+ε 증가: 삼각형(2-simplex) 형성        → K_2 (루프가 생겼다 사라짐)
+ε → ∞: 모든 점이 하나로 연결          → K_∞ (연결 성분 = 1)
+```
+
+각 단계에서 Homology group을 계산한다:
+
+| Homology | 의미 | 직관적 해석 |
+|----------|------|-----------|
+| **H_0** | 연결 성분(connected components) | 데이터가 몇 개의 군집을 형성하는가? |
+| **H_1** | 1차원 루프(loops, cycles) | 데이터에 구멍이 뚫린 원형 구조가 있는가? |
+| **H_2** | 2차원 빈 공간(voids) | 데이터에 빈 구체 같은 구조가 있는가? |
+
+### Vietoris-Rips Complex
+
+본 연구에서 사용한 단체 복합체 구성 방법:
+
+```
+VR_ε(X) = {σ ⊆ X : d(x_i, x_j) ≤ ε, ∀ x_i, x_j ∈ σ}
+```
+
+즉, 모든 쌍의 거리가 ε 이하인 점 집합이 simplex를 형성한다. ε가 커질수록 더 많은 simplex가 생기고, 위상적 feature가 생성(birth)되거나 소멸(death)된다.
+
+### Persistence Diagram
+
+각 위상적 feature의 생애를 (birth, death) 좌표로 기록한다:
+
+```
+Feature f: birth = b (ε=b에서 생성), death = d (ε=d에서 소멸)
+Persistence(f) = d - b  (feature의 수명, 길수록 의미 있는 구조)
+```
+
+- 대각선(birth = death)에 가까운 점 → **노이즈** (짧은 수명)
+- 대각선에서 먼 점 → **유의미한 위상적 구조** (긴 수명)
+
+### Persistence Diagram 간 비교 지표
+
+| 지표 | 정의 | 해석 |
+|------|------|------|
+| **Wasserstein Distance** | 두 diagram 간 최적 매칭의 총 비용 | 전체적인 위상 구조 차이 |
+| **Bottleneck Distance** | 최적 매칭에서 가장 큰 단일 차이 | 가장 다른 하나의 feature 차이 |
+
+### 본 연구의 적용: TAE Latent Space에서의 PH
+
+전통적 TDA는 원본 고차원 데이터에 직접 PH를 적용하지만, 유전자 발현 데이터(20,862차원)에서는 **차원의 저주(curse of dimensionality)**로 인해 pairwise distance가 의미를 잃는다. 본 연구의 핵심 방법론적 기여는 이 문제를 **TAE + TDA 조합**으로 해결한 것이다:
+
+```
+원본 데이터 (20,862차원)
+  │
+  ├─ 직접 PH 적용 → 차원의 저주로 distance 붕괴, 의미 없는 결과
+  │
+  └─ TAE (topo loss) → 32차원 latent
+                          │
+                          └─ PH 적용 → 위상 구조가 보존된 상태에서 유의미한 분석 가능
+```
+
+**왜 TAE가 핵심인가:**
+- TAE의 **Sinkhorn topological loss**가 입력/출력 간 pairwise distance 구조를 보존
+- 따라서 원본의 위상적 특성이 32차원 latent space에 **충실히 인코딩**됨
+- 32차원에서의 PH 결과가 원본 20,862차원의 위상 구조를 반영
+
+**32차원이 최적인 이유 (실험적 확인):**
+- 16d: 정보 압축이 과도 → 종양/정상의 H1 차이 사라짐 (p=0.595)
+- **32d: 위상 구조 보존과 노이즈 제거의 최적 균형 → H1 차이 극대화 (p<0.001)**
+- 64d: 차원의 저주 효과 시작 → H1 차이 다시 사라짐 (p=0.620)
+
+### 사용 라이브러리
 
 | 기법 | 구현 | 용도 |
 |------|------|------|
-| **Vietoris-Rips Persistent Homology** | ripser 0.6.14 | H0(연결 성분), H1(루프) 계산 |
+| **Vietoris-Rips PH** | ripser 0.6.14 | H0(연결 성분), H1(루프) 계산 |
 | **Wasserstein Distance** | persim 0.3.8 | Persistence diagram 간 거리 |
 | **Bottleneck Distance** | persim 0.3.8 | 최대 단일 feature 차이 |
-| **Permutation Test** | 자체 구현 | 통계적 유의성 검증 |
-
-### Persistent Homology 수학적 정의
-
-Vietoris-Rips complex: 반지름 ε에서
-```
-VR_ε(X) = {σ ⊆ X : d(x_i, x_j) ≤ ε for all x_i, x_j ∈ σ}
-```
-
-Persistence: 각 위상적 feature의 (birth, death) 쌍 기록
-```
-H_k^{b,d} : 차원 k의 feature가 ε=b에서 생성, ε=d에서 소멸
-Persistence = death - birth (feature의 수명)
-```
+| **Permutation Test** | 자체 구현 | 통계적 유의성 검증 (크기 매칭) |
 
 ---
 
