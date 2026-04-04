@@ -1,0 +1,4 @@
+endpoint,gene_set,score_method,n,events,n_high,n_low,logrank_p
+OS,H2C_37,cox_beta,1074,150,537,537,2.0298752880681794e-07
+OS,Euclidean_top37,pca,1074,150,537,537,0.8903646382072885
+OS,Random_37,pca,1074,150,537,537,0.9521917515248365
